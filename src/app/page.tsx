@@ -24,7 +24,8 @@ class Purchase {
 }
 
 class Parser {
-  private lineCount: number;
+  private lines: string[];
+
   private customerName: string;
   // TODO: Parse address further??
   private address: string;
@@ -34,32 +35,71 @@ class Parser {
 
   public getCustomerName(): string{ return this.customerName; }
   public getAddress(): string{ return this.address; }
+  public getTotalDeposits(): number{ return this.totalDeposits; }
 
   constructor(text: string) {
-    this.lineCount = 0;
+    this.lines = [];
     this.customerName = '';
     this.address = '';
     this.totalDeposits = 0;
     this.totalAtmWithdrawals = 0;
     this.walmartPurchases = [];
 
-    const lines = text.split(/\r?\n/); // Split text by line breaks (handles both \n and \r\n)
-    lines.forEach((line, _) => {
+    const inputLines = text.split(/\r?\n/); // Split text by line breaks (handles both \n and \r\n)
+    for (var line of inputLines) {
+      this.lines.push(line);
       this.parseLine(line);
-      this.lineCount += 1;
-    });
+    }
+  }
+
+  // Returns true if `bigString` contains `substring`, or false otherwise.
+  // NOTE: This function is not case-sensitive
+  private stringContains(bigString: string, substrings: string[]): boolean {
+    for (var sub of substrings) {
+      if (!bigString.toLowerCase().includes(sub.toLowerCase())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /* Given a bunch of string lists A(n-1),A(n-2),A(n-3),...,A2,A1,A0,
+   * checks whether the past n lines contain the corresponding string list,
+   * i.e. lines[-k] contains Ak for every k = 0,1,..., n-1.
+   * Returns true if all containments hold, or false otherwise.
+   * 
+   * In particular, calling this function on a single string list checks whether
+   * the current line contains all substrings in the list.
+  */
+  private pastLinesMatch(...substringLists: string[][]): boolean {
+    for (var i = substringLists.length-1; i >= 0; i--) {
+      var k = substringLists.length - i - 1;
+      var subList = substringLists[i];
+      const line: string | undefined = this.lines[this.lines.length-1-k];
+      if (line === undefined || !this.stringContains(line, subList)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public parseLine(line: string): void {
-    if (this.lineCount == CUSTOMER_NAME_LINE) {
+    if (this.lines.length === CUSTOMER_NAME_LINE) {
       this.customerName = line
     }
-    else if (ADDRESS_LINES.includes(this.lineCount)) {
+    else if (ADDRESS_LINES.includes(this.lines.length)) {
       this.address += line
-      if (ADDRESS_LINES.indexOf(this.lineCount) < ADDRESS_LINES.length-1)
+      if (ADDRESS_LINES.indexOf(this.lines.length) < ADDRESS_LINES.length-1)
         this.address += ', ';
     }
+    else if (this.pastLinesMatch(["Deposits and Other Credits"], ["Date", "Description", "Amount"], [])) {
+        var row = line.split('/\s+/');
+        // TODO: WHY IS ROW LENGTH = 1 HERE???
+        console.log(`row length: ${row.length}, row: ${row}`);
+        this.totalDeposits += Number(row.at(-1));
+    }
   }
+
 }
 
 const PdfOCRTextExtractor = () => {
@@ -121,7 +161,10 @@ const PdfOCRTextExtractor = () => {
   return (
     <div>
       <input type="file" accept="application/pdf" onChange={handleFileChange} />
-      {loading ? <p>Extracting text from PDF...</p> : parser && <pre>NAME: {parser.getCustomerName()}, ADDRESS: {parser.getAddress()}</pre>}
+      {loading ? <p>Extracting text from PDF...</p> : parser && <pre>NAME: {parser.getCustomerName()}{'\n'}
+                                                                    ADDRESS: {parser.getAddress()}{'\n'}
+                                                                    TOTAL DEPOSITS: {parser.getTotalDeposits()}{'\n'}
+                                                                    ENTIRE DOC:{'\n' + extractedText}</pre>}
     </div>
   );
 };
