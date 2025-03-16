@@ -1,15 +1,75 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
 
 // Set the worker src (optional if using large PDFs)
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/workers/pdf.worker.min.mjs';
 
+// Constants for parsing
+const CUSTOMER_NAME_LINE = 3;
+const ADDRESS_LINES = [CUSTOMER_NAME_LINE+1, CUSTOMER_NAME_LINE+2];
+
+class Purchase {
+  private date: string;
+  private amount: number;
+  private description: string;
+
+  constructor(date: string, amount: number, description: string) {
+    this.date = date;
+    this.amount = amount;
+    this.description = description;
+  }
+}
+
+class Parser {
+  private lineCount: number;
+  private customerName: string;
+  // TODO: Parse address further??
+  private address: string;
+  private totalDeposits: number;
+  private totalAtmWithdrawals: number;
+  private walmartPurchases: Purchase[];
+
+  public getCustomerName(): string{ return this.customerName; }
+  public getAddress(): string{ return this.address; }
+
+  constructor(text: string) {
+    this.lineCount = 0;
+    this.customerName = '';
+    this.address = '';
+    this.totalDeposits = 0;
+    this.totalAtmWithdrawals = 0;
+    this.walmartPurchases = [];
+
+    const lines = text.split(/\r?\n/); // Split text by line breaks (handles both \n and \r\n)
+    lines.forEach((line, _) => {
+      this.parseLine(line);
+      this.lineCount += 1;
+    });
+  }
+
+  public parseLine(line: string): void {
+    if (this.lineCount == CUSTOMER_NAME_LINE) {
+      this.customerName = line
+    }
+    else if (ADDRESS_LINES.includes(this.lineCount)) {
+      this.address += line
+      if (ADDRESS_LINES.indexOf(this.lineCount) < ADDRESS_LINES.length-1)
+        this.address += ', ';
+    }
+  }
+}
+
 const PdfOCRTextExtractor = () => {
   const [extractedText, setExtractedText] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [parser, setParser] = useState<Parser | null>(null);
+
+  useEffect(() => {
+    extractedText && setParser(new Parser(extractedText));
+  }, [extractedText]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -61,7 +121,7 @@ const PdfOCRTextExtractor = () => {
   return (
     <div>
       <input type="file" accept="application/pdf" onChange={handleFileChange} />
-      {loading ? <p>Extracting text from PDF...</p> : extractedText && <pre>{extractedText}</pre>}
+      {loading ? <p>Extracting text from PDF...</p> : parser && <pre>NAME: {parser.getCustomerName()}, ADDRESS: {parser.getAddress()}</pre>}
     </div>
   );
 };
