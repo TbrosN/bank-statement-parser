@@ -34,10 +34,12 @@ class Parser {
   private walmartPurchases: Purchase[];
 
   private parsingDeposits: boolean;
+  private parsingWithdrawals: boolean;
 
   public getCustomerName(): string{ return this.customerName; }
   public getAddress(): string{ return this.address; }
   public getTotalDeposits(): number{ return this.totalDeposits; }
+  public getTotalAtmWithdrawals(): number{ return this.totalAtmWithdrawals; }
 
   constructor(text: string) {
     this.lines = [];
@@ -47,6 +49,7 @@ class Parser {
     this.totalAtmWithdrawals = 0;
     this.walmartPurchases = [];
     this.parsingDeposits = false;
+    this.parsingWithdrawals = false;
 
     const inputLines = text.split(/\r?\n/); // Split text by line breaks (handles both \n and \r\n)
     for (var line of inputLines) {
@@ -101,11 +104,22 @@ class Parser {
     else if (this.pastLinesMatch(["Withdrawals and Other Debits"])) {
       this.parsingDeposits = false;
     }
+    else if (this.pastLinesMatch(["Withdrawals and Other Debits"], ["Date", "Description", "Amount"], [])) {
+      this.parsingWithdrawals = true;
+    }
+    else if (this.pastLinesMatch(["Account Service Charges and Fees"])) {
+      this.parsingWithdrawals = false;
+    }
     if (this.parsingDeposits) {
         // console.log(`line: ${line}`);
         var row = line.split(/\s+/);
         // console.log(`row length: ${row.length}, row: ${row}`);
         this.totalDeposits += Number(row.at(-1));
+    }
+    if (this.parsingWithdrawals) {
+      var row = line.split(/\s+/);
+      if (this.stringContains(line, ["ATM WITHDRAWAL"]))
+        this.totalAtmWithdrawals += Number(row.at(-1));
     }
   }
 
@@ -173,6 +187,7 @@ const PdfOCRTextExtractor = () => {
       {loading ? <p>Extracting text from PDF...</p> : parser && <pre>NAME: {parser.getCustomerName()}{'\n'}
                                                                     ADDRESS: {parser.getAddress()}{'\n'}
                                                                     TOTAL DEPOSITS: {parser.getTotalDeposits()}{'\n'}
+                                                                    TOTAL ATM WITHDRAWALS: {parser.getTotalAtmWithdrawals()}{'\n'}
                                                                     ENTIRE DOC:{'\n' + extractedText}</pre>}
     </div>
   );
