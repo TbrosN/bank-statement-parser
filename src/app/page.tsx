@@ -11,6 +11,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/workers/pdf.worker.min.mjs';
 const CUSTOMER_NAME_LINE = 3;
 const ADDRESS_LINES = [CUSTOMER_NAME_LINE+1, CUSTOMER_NAME_LINE+2];
 
+// TODO: Actually use this class?
 class Purchase {
   private date: string;
   private amount: number;
@@ -31,7 +32,7 @@ class Parser {
   private address: string;
   private totalDeposits: number;
   private totalAtmWithdrawals: number;
-  private walmartPurchases: Purchase[];
+  private walmartPurchases: string[];
 
   private parsingDeposits: boolean;
   private parsingWithdrawals: boolean;
@@ -40,6 +41,7 @@ class Parser {
   public getAddress(): string{ return this.address; }
   public getTotalDeposits(): number{ return this.totalDeposits; }
   public getTotalAtmWithdrawals(): number{ return this.totalAtmWithdrawals; }
+  public getWalmartPurchases(): string[]{ return this.walmartPurchases; }
 
   constructor(text: string) {
     this.lines = [];
@@ -118,8 +120,10 @@ class Parser {
     }
     if (this.parsingWithdrawals) {
       var row = line.split(/\s+/);
-      if (this.stringContains(line, ["ATM WITHDRAWAL"]))
+      if (this.pastLinesMatch(["ATM WITHDRAWAL"]))
         this.totalAtmWithdrawals += Number(row.at(-1));
+      if (this.pastLinesMatch(["WAL-MART"]) || this.pastLinesMatch(["WAL-MART"]))
+        this.walmartPurchases.push(line);
     }
   }
 
@@ -188,6 +192,7 @@ const PdfOCRTextExtractor = () => {
                                                                     ADDRESS: {parser.getAddress()}{'\n'}
                                                                     TOTAL DEPOSITS: {parser.getTotalDeposits()}{'\n'}
                                                                     TOTAL ATM WITHDRAWALS: {parser.getTotalAtmWithdrawals()}{'\n'}
+                                                                    WALMART PURCHASES: {parser.getWalmartPurchases()}{'\n'}
                                                                     ENTIRE DOC:{'\n' + extractedText}</pre>}
     </div>
   );
