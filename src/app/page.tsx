@@ -33,6 +33,8 @@ class Parser {
   private totalAtmWithdrawals: number;
   private walmartPurchases: Purchase[];
 
+  private parsingDeposits: boolean;
+
   public getCustomerName(): string{ return this.customerName; }
   public getAddress(): string{ return this.address; }
   public getTotalDeposits(): number{ return this.totalDeposits; }
@@ -44,6 +46,7 @@ class Parser {
     this.totalDeposits = 0;
     this.totalAtmWithdrawals = 0;
     this.walmartPurchases = [];
+    this.parsingDeposits = false;
 
     const inputLines = text.split(/\r?\n/); // Split text by line breaks (handles both \n and \r\n)
     for (var line of inputLines) {
@@ -93,9 +96,15 @@ class Parser {
         this.address += ', ';
     }
     else if (this.pastLinesMatch(["Deposits and Other Credits"], ["Date", "Description", "Amount"], [])) {
-        var row = line.split('/\s+/');
-        // TODO: WHY IS ROW LENGTH = 1 HERE???
-        console.log(`row length: ${row.length}, row: ${row}`);
+      this.parsingDeposits = true;
+    }
+    else if (this.pastLinesMatch(["Withdrawals and Other Debits"])) {
+      this.parsingDeposits = false;
+    }
+    if (this.parsingDeposits) {
+        // console.log(`line: ${line}`);
+        var row = line.split(/\s+/);
+        // console.log(`row length: ${row.length}, row: ${row}`);
         this.totalDeposits += Number(row.at(-1));
     }
   }
