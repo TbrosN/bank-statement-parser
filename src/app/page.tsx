@@ -7,135 +7,75 @@ import Tesseract from 'tesseract.js';
 // Set the worker src (optional if using large PDFs)
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/workers/pdf.worker.min.mjs';
 
-// Constants for parsing
-const CUSTOMER_NAME_LINE = 3;
-const ADDRESS_LINES = [CUSTOMER_NAME_LINE+1, CUSTOMER_NAME_LINE+2];
+// Define types for the transactions
+type Transaction = {
+  date: string;
+  description: string;
+  amount: number;
+};
 
-// TODO: Actually use this class?
-class Purchase {
-  private date: string;
-  private amount: number;
-  private description: string;
+type ParsedStatement = {
+  deposits: Transaction[];
+  withdrawals: Transaction[];
+};
 
-  constructor(date: string, amount: number, description: string) {
-    this.date = date;
-    this.amount = amount;
-    this.description = description;
-  }
+// Helper function to clean and split lines
+function cleanAndSplit(text: string): string[] {
+  return text.split('\n').map(line => line.trim()).filter(line => line);
 }
 
-class Parser {
-  private lines: string[];
-
-  private customerName: string;
-  // TODO: Parse address further??
-  private address: string;
-  private totalDeposits: number;
-  private totalAtmWithdrawals: number;
-  private walmartPurchases: string[];
-
-  private parsingDeposits: boolean;
-  private parsingWithdrawals: boolean;
-
-  public getCustomerName(): string{ return this.customerName; }
-  public getAddress(): string{ return this.address; }
-  public getTotalDeposits(): number{ return this.totalDeposits; }
-  public getTotalAtmWithdrawals(): number{ return this.totalAtmWithdrawals; }
-  public getWalmartPurchases(): string[]{ return this.walmartPurchases; }
-
-  constructor(text: string) {
-    this.lines = [];
-    this.customerName = '';
-    this.address = '';
-    this.totalDeposits = 0;
-    this.totalAtmWithdrawals = 0;
-    this.walmartPurchases = [];
-    this.parsingDeposits = false;
-    this.parsingWithdrawals = false;
-
-    const inputLines = text.split(/\r?\n/); // Split text by line breaks (handles both \n and \r\n)
-    for (var line of inputLines) {
-      this.lines.push(line);
-      this.parseLine(line);
-    }
+// Helper function to parse a transaction line (for Deposits, Withdrawals, etc.)
+function parseTransactionLine(line: string): Transaction | null {
+  // Example line: 10/03 PREAUTHORIZED CREDIT ~~ PAYROLL 0987654678990 763.01,10/16 PREAUTHORIZED CREDIT US TREASURY 310 SOC SEC 020802 509499853A SSA 763.01
+  const parts = line.split(/\s{2,}/); // Split on 2+ spaces (for description and amount)
+  if (parts.length === 3) {
+    return {
+      date: parts[0],
+      description: parts[1].trim(),
+      amount: parseFloat(parts[2].replace(/,/g, ''))
+    };
   }
+  return null;
+}
 
-  // Returns true if `bigString` contains `substring`, or false otherwise.
-  // NOTE: This function is not case-sensitive
-  private stringContains(bigString: string, substrings: string[]): boolean {
-    for (var sub of substrings) {
-      if (!bigString.toLowerCase().includes(sub.toLowerCase())) {
-        return false;
-      }
-    }
-    return true;
-  }
+// Main function to parse the statement
+function parseStatement(text: string): ParsedStatement {
+  const sections: ParsedStatement = {
+    deposits: [],
+    withdrawals: []
+  };
 
-  /* Given a bunch of string lists A(n-1),A(n-2),A(n-3),...,A2,A1,A0,
-   * checks whether the past n lines contain the corresponding string list,
-   * i.e. lines[-k] contains Ak for every k = 0,1,..., n-1.
-   * Returns true if all containments hold, or false otherwise.
-   * 
-   * In particular, calling this function on a single string list checks whether
-   * the current line contains all substrings in the list.
-  */
-  private pastLinesMatch(...substringLists: string[][]): boolean {
-    for (var i = substringLists.length-1; i >= 0; i--) {
-      var k = substringLists.length - i - 1;
-      var subList = substringLists[i];
-      const line: string | undefined = this.lines[this.lines.length-1-k];
-      if (line === undefined || !this.stringContains(line, subList)) {
-        return false;
-      }
-    }
-    return true;
-  }
+  // Split into sections using known section headers
+  const depositsSection = text.split('Deposits and Other Credits')[1]?.split('Withdrawals and Other Debits')[0] || '';
+  console.log(`deposits section: ${depositsSection}`);
+  const withdrawalsSection = text.split('Withdrawals and Other Debits')[1]?.split('Account Service Charges and Fees')[0] || '';
 
-  public parseLine(line: string): void {
-    if (this.lines.length === CUSTOMER_NAME_LINE) {
-      this.customerName = line
-    }
-    else if (ADDRESS_LINES.includes(this.lines.length)) {
-      this.address += line
-      if (ADDRESS_LINES.indexOf(this.lines.length) < ADDRESS_LINES.length-1)
-        this.address += ', ';
-    }
-    else if (this.pastLinesMatch(["Deposits and Other Credits"], ["Date", "Description", "Amount"], [])) {
-      this.parsingDeposits = true;
-    }
-    else if (this.pastLinesMatch(["Withdrawals and Other Debits"])) {
-      this.parsingDeposits = false;
-    }
-    else if (this.pastLinesMatch(["Withdrawals and Other Debits"], ["Date", "Description", "Amount"], [])) {
-      this.parsingWithdrawals = true;
-    }
-    else if (this.pastLinesMatch(["Account Service Charges and Fees"])) {
-      this.parsingWithdrawals = false;
-    }
-    if (this.parsingDeposits) {
-        // console.log(`line: ${line}`);
-        var row = line.split(/\s+/);
-        // console.log(`row length: ${row.length}, row: ${row}`);
-        this.totalDeposits += Number(row.at(-1));
-    }
-    if (this.parsingWithdrawals) {
-      var row = line.split(/\s+/);
-      if (this.pastLinesMatch(["ATM WITHDRAWAL"]))
-        this.totalAtmWithdrawals += Number(row.at(-1));
-      if (this.pastLinesMatch(["WAL-MART"]) || this.pastLinesMatch(["WAL-MART"]))
-        this.walmartPurchases.push(line);
-    }
-  }
+  // Parse Deposits and Credits
+  const depositLines = cleanAndSplit(depositsSection);
+  console.log(`deposit lines: ${depositLines}`);
+  depositLines.forEach(line => {
+    const transaction = parseTransactionLine(line);
+    console.log(`transaction: ${transaction}`);
+    if (transaction) sections.deposits.push(transaction);
+  });
 
+  // Parse Withdrawals and Debits
+  const withdrawalLines = cleanAndSplit(withdrawalsSection);
+  withdrawalLines.forEach(line => {
+    const transaction = parseTransactionLine(line);
+    if (transaction) sections.withdrawals.push(transaction);
+  });
+
+  return sections;
 }
 
 const PdfOCRTextExtractor = () => {
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [parser, setParser] = useState<Parser | null>(null);
+  const [parsedStatement, setParsedStatement] = useState<ParsedStatement | null>(null);
 
   useEffect(() => {
-    extractedText && setParser(new Parser(extractedText));
+    extractedText && setParsedStatement(parseStatement(extractedText));
   }, [extractedText]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,11 +128,9 @@ const PdfOCRTextExtractor = () => {
   return (
     <div>
       <input type="file" accept="application/pdf" onChange={handleFileChange} />
-      {loading ? <p>Extracting text from PDF...</p> : parser && <pre>NAME: {parser.getCustomerName()}{'\n'}
-                                                                    ADDRESS: {parser.getAddress()}{'\n'}
-                                                                    TOTAL DEPOSITS: {parser.getTotalDeposits()}{'\n'}
-                                                                    TOTAL ATM WITHDRAWALS: {parser.getTotalAtmWithdrawals()}{'\n'}
-                                                                    WALMART PURCHASES: {parser.getWalmartPurchases()}{'\n'}
+      {loading ? <p>Extracting text from PDF...</p> : parsedStatement && <pre>
+                                                                    FIRST DEPOSIT: {parsedStatement.deposits[0]?.description}{'\n'}
+                                                                    FIRST WITHDRAWAL: {parsedStatement.withdrawals[0]?.description}{'\n'}
                                                                     ENTIRE DOC:{'\n' + extractedText}</pre>}
     </div>
   );
