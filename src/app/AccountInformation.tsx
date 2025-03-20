@@ -16,9 +16,21 @@ const AccountInformation: React.FC<AccountInformationProps> = ({ name, address, 
   return (
     <div className="bg-white shadow-md rounded-lg p-6 max-w-6xl w-full">
       {/* User Info */}
-      <div className="border-b pb-4 mb-4">
+      <div>
         <h1 className="text-xl font-semibold text-gray-700">{name}</h1>
         <p className="text-gray-500">{address}</p>
+      </div>
+
+      {/* Total Deposits and Withdrawals */}
+      <div className="flex justify-between py-5">
+        <div className="bg-green-100 text-green-700 p-4 rounded-lg w-1/2 mr-2">
+          <h3 className="text-lg font-semibold">Total Deposits</h3>
+          <p className="text-2xl font-bold">${totalDeposits.toFixed(2)}</p>
+        </div>
+        <div className="bg-red-100 text-red-700 p-4 rounded-lg w-1/2 ml-2">
+          <h3 className="text-lg font-semibold">Total Withdrawals</h3>
+          <p className="text-2xl font-bold">${totalWithdrawals.toFixed(2)}</p>
+        </div>
       </div>
 
       {/* Purchases Table */}
@@ -49,18 +61,6 @@ const AccountInformation: React.FC<AccountInformationProps> = ({ name, address, 
             ))}
           </tbody>
         </table>
-      </div>
-
-      {/* Total Deposits and Withdrawals */}
-      <div className="flex justify-between">
-        <div className="bg-green-100 text-green-700 p-4 rounded-lg w-1/2 mr-2">
-          <h3 className="text-lg font-semibold">Total Deposits</h3>
-          <p className="text-2xl font-bold">${totalDeposits.toFixed(2)}</p>
-        </div>
-        <div className="bg-red-100 text-red-700 p-4 rounded-lg w-1/2 ml-2">
-          <h3 className="text-lg font-semibold">Total Withdrawals</h3>
-          <p className="text-2xl font-bold">${totalWithdrawals.toFixed(2)}</p>
-        </div>
       </div>
     </div>);
 }
